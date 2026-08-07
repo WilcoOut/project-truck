@@ -10,10 +10,10 @@ import webbrowser
 from datetime import datetime
 
 from config import OUTPUT_DIR, REPORT_PATH, get_cities_in_radius
-from database import init_db, reset_new_flags, upsert_listing, cleanup_stale_listings, get_all_listings, get_stats
+from database import init_db, reset_new_flags, upsert_listing, cleanup_stale_listings, get_listing_image, get_all_listings, get_stats
 from filter import filter_listing
 from report import generate_report
-from scrapers.craigslist import CraigslistScraper
+from scrapers.craigslist import CraigslistScraper, fetch_listing_image
 
 
 def main(open_browser: bool = True):
@@ -48,6 +48,12 @@ def main(open_browser: bool = True):
             if listing is None:
                 continue
             scraper_kept += 1
+
+            # Hydrate image: reuse stored URL if we have one, else fetch detail page
+            if not listing.get("image_url"):
+                stored = get_listing_image(listing["id"])
+                listing["image_url"] = stored if stored else fetch_listing_image(listing["url"])
+
             if upsert_listing(listing):
                 scraper_new += 1
                 session_new += 1

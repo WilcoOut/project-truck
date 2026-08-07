@@ -3,6 +3,7 @@ from datetime import datetime
 from config import (
     REPORT_PATH, OUTPUT_DIR, MANUAL_SEARCH_LINKS,
     HOME_LAT, HOME_LON, SEARCH_RADIUS_MILES, get_cities_in_radius,
+    PRICE_MIN, PRICE_MAX,
 )
 
 CSS = """
@@ -90,6 +91,52 @@ header p { opacity: 0.6; font-size: 0.8rem; margin-top: 0.2rem; }
 .ctrl-btn.active.chevy { background: #276749; border-color: #276749; }
 .ctrl-btn.active.new-f { background: #c05621; border-color: #c05621; }
 .ctrl-divider { width: 1px; height: 24px; background: #e2e8f0; }
+
+/* ── Price range slider ── */
+.price-filter { align-items: center; gap: 0.6rem; }
+.pr-display {
+    font-size: 0.82rem; font-weight: 600; color: #4a5568;
+    min-width: 140px; white-space: nowrap;
+}
+.pr-wrap {
+    position: relative;
+    width: 200px; height: 22px;
+    display: flex; align-items: center;
+}
+.pr-track {
+    position: absolute;
+    left: 0; right: 0; top: 50%;
+    transform: translateY(-50%);
+    height: 4px; border-radius: 2px;
+    background: #e2e8f0;
+    pointer-events: none;
+}
+.pr-fill {
+    position: absolute;
+    height: 100%; border-radius: 2px;
+    background: #2b6cb0;
+}
+.pr-thumb {
+    position: absolute;
+    width: 100%; height: 22px;
+    appearance: none; -webkit-appearance: none;
+    background: transparent;
+    pointer-events: none;
+    margin: 0;
+}
+.pr-thumb::-webkit-slider-thumb {
+    appearance: none; -webkit-appearance: none;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #2b6cb0; border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    pointer-events: all; cursor: pointer;
+}
+.pr-thumb::-moz-range-thumb {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #2b6cb0; border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    pointer-events: all; cursor: pointer; border: none;
+}
 
 /* ── Count badge ── */
 .count-badge {
@@ -250,8 +297,10 @@ header p { opacity: 0.6; font-size: 0.8rem; margin-top: 0.2rem; }
 
 JS = """
 (function () {
-    var currentSort = 'default';
+    var currentSort   = 'default';
     var currentFilter = 'all';
+    var priceMin = PRICE_LO;
+    var priceMax = PRICE_DEFAULT_HI;
 
     function getCards() {
         return Array.from(document.querySelectorAll('#listings-grid .card'));
@@ -261,13 +310,20 @@ JS = """
         var cards = getCards();
         var noResults = document.getElementById('no-results');
 
-        // Filter
         cards.forEach(function (c) {
+            // Model / new filter
             var show = true;
             if (currentFilter === 'new')
                 show = c.dataset.isNew === '1';
             else if (currentFilter !== 'all')
                 show = c.dataset.model === currentFilter;
+
+            // Price filter — listings with no price always pass through
+            if (show) {
+                var p = parseFloat(c.dataset.price);
+                if (p > 0) show = (p >= priceMin && p <= priceMax);
+            }
+
             c.style.display = show ? '' : 'none';
         });
 
@@ -290,7 +346,6 @@ JS = """
             if (currentSort === 'make') {
                 return a.dataset.make.localeCompare(b.dataset.make);
             }
-            // default: new first, then score desc
             var newDiff = parseInt(b.dataset.isNew) - parseInt(a.dataset.isNew);
             if (newDiff !== 0) return newDiff;
             return parseFloat(b.dataset.score) - parseFloat(a.dataset.score);
@@ -298,8 +353,21 @@ JS = """
 
         var grid = document.getElementById('listings-grid');
         visible.forEach(function (c) { grid.appendChild(c); });
-
         if (noResults) noResults.style.display = visible.length === 0 ? 'block' : 'none';
+    }
+
+    function updatePriceTrack() {
+        var lo   = parseInt(document.getElementById('pr-min').value);
+        var hi   = parseInt(document.getElementById('pr-max').value);
+        var span = PRICE_HI - PRICE_LO;
+        var fill = document.getElementById('pr-fill');
+        fill.style.left  = ((lo - PRICE_LO) / span * 100) + '%';
+        fill.style.width = ((hi - lo)        / span * 100) + '%';
+        document.getElementById('pr-lo').textContent = '$' + lo.toLocaleString();
+        document.getElementById('pr-hi').textContent = hi >= PRICE_HI ? 'Any' : '$' + hi.toLocaleString();
+        priceMin = lo;
+        priceMax = hi;
+        applyControls();
     }
 
     document.querySelectorAll('.sort-btn').forEach(function (btn) {
@@ -319,6 +387,20 @@ JS = """
             applyControls();
         });
     });
+
+    var prMin = document.getElementById('pr-min');
+    var prMax = document.getElementById('pr-max');
+    if (prMin && prMax) {
+        prMin.addEventListener('input', function () {
+            if (parseInt(prMin.value) > parseInt(prMax.value)) prMin.value = prMax.value;
+            updatePriceTrack();
+        });
+        prMax.addEventListener('input', function () {
+            if (parseInt(prMax.value) < parseInt(prMin.value)) prMax.value = prMin.value;
+            updatePriceTrack();
+        });
+        updatePriceTrack();  // initialise fill on page load
+    }
 })();
 """
 
@@ -403,7 +485,7 @@ def _model_count(listings: list[dict], model_name: str) -> int:
     return sum(1 for l in listings if l.get("model") == model_name)
 
 
-def _controls_html(listings: list[dict]) -> str:
+def _controls_html(listings: list[dict], price_lo: int, price_hi: int, price_default_hi: int) -> str:
     from config import MODELS as _MODELS
     total   = len(listings)
     new_cnt = sum(1 for l in listings if l.get("is_new"))
@@ -431,6 +513,18 @@ def _controls_html(listings: list[dict]) -> str:
     <span class="ctrl-label">Filter:</span>
     <button class="ctrl-btn filter-btn active" data-filter="all">All <span class="count-badge">{total}</span></button>
 {filter_buttons}    <button class="ctrl-btn filter-btn new-f" data-filter="new">New Today <span class="count-badge">{new_cnt}</span></button>
+  </div>
+  <div class="ctrl-divider"></div>
+  <div class="ctrl-group price-filter">
+    <span class="ctrl-label">Price:</span>
+    <span class="pr-display"><span id="pr-lo">${price_lo:,}</span> &ndash; <span id="pr-hi">Any</span></span>
+    <div class="pr-wrap">
+      <div class="pr-track"><div class="pr-fill" id="pr-fill"></div></div>
+      <input type="range" id="pr-min" class="pr-thumb"
+             min="{price_lo}" max="{price_hi}" value="{price_lo}" step="250">
+      <input type="range" id="pr-max" class="pr-thumb"
+             min="{price_lo}" max="{price_hi}" value="{price_default_hi}" step="250">
+    </div>
   </div>
 </div>
 """
@@ -496,6 +590,12 @@ def generate_report(listings: list[dict], new_count: int) -> None:
     timestamp = datetime.now().strftime("%B %d, %Y at %I:%M %p")
     cities_in_range = len(get_cities_in_radius())
 
+    # Compute price bounds from actual listings (fall back to config limits)
+    prices = [l["price"] for l in listings if l.get("price")]
+    price_lo = (min(prices) // 250) * 250 if prices else PRICE_MIN
+    price_hi = ((max(prices) + 249) // 250) * 250 if prices else PRICE_MAX
+    price_default_hi = min(3000, price_hi)
+
     # Build per-make counts dynamically from the current MODELS config
     from config import MODELS as _MODELS
     make_order = list(dict.fromkeys(m["make"] for m in _MODELS))
@@ -538,7 +638,7 @@ def generate_report(listings: list[dict], new_count: int) -> None:
 {make_stats_html}
 </div>
 
-{_controls_html(listings)}
+{_controls_html(listings, price_lo, price_hi, price_default_hi)}
 
 <div class="grid-wrap">
   <div class="grid" id="listings-grid">
@@ -558,7 +658,7 @@ def generate_report(listings: list[dict], new_count: int) -> None:
   &mdash; Updated {timestamp}
 </div>
 
-<script>{JS}</script>
+<script>var PRICE_LO={price_lo};var PRICE_HI={price_hi};var PRICE_DEFAULT_HI={price_default_hi};{JS}</script>
 </body>
 </html>
 """

@@ -18,6 +18,16 @@ def _unique_search_terms() -> list[str]:
     return terms
 
 
+def fetch_listing_image(url: str) -> str | None:
+    """Fetch the first photo from a Craigslist listing detail page."""
+    resp = fetch(url)
+    if not resp:
+        return None
+    soup = BeautifulSoup(resp.text, "lxml")
+    img = soup.select_one("figure.iw img, .gallery img")
+    return img.get("src") if img else None
+
+
 class CraigslistScraper:
     name = "Craigslist"
 
@@ -73,6 +83,12 @@ class CraigslistScraper:
                     loc_tag = item.select_one(".location")
                     location = loc_tag.get_text(strip=True) if loc_tag else city
 
+                    img_tag = item.find("img")
+                    image_url = img_tag.get("src") if img_tag else None
+                    # Prefer the larger thumbnail Craigslist serves at 600x450
+                    if image_url and "300x300" in image_url:
+                        image_url = image_url.replace("300x300", "600x450")
+
                     results.append(
                         {
                             "id": item_id,
@@ -82,7 +98,7 @@ class CraigslistScraper:
                             "price": price,
                             "location": location,
                             "description": "",
-                            "image_url": None,
+                            "image_url": image_url,
                         }
                     )
 

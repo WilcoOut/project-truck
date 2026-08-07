@@ -73,8 +73,8 @@ def upsert_listing(listing: dict) -> bool:
         )
     else:
         conn.execute(
-            "UPDATE listings SET last_seen=?, score=? WHERE id=?",
-            (now, listing.get("score"), listing["id"]),
+            "UPDATE listings SET last_seen=?, score=?, image_url=? WHERE id=?",
+            (now, listing.get("score"), listing.get("image_url"), listing["id"]),
         )
 
     conn.commit()
@@ -100,6 +100,16 @@ def get_all_listings(limit: int = 300) -> list[dict]:
         d["red_flags"] = json.loads(d["red_flags"] or "[]")
         result.append(d)
     return result
+
+
+def get_listing_image(listing_id: str) -> str | None:
+    """Return the stored image_url for a listing, or None if not found."""
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT image_url FROM listings WHERE id=?", (listing_id,)
+    ).fetchone()
+    conn.close()
+    return row["image_url"] if row else None
 
 
 def reset_new_flags() -> None:

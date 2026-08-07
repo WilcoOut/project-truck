@@ -1,0 +1,66 @@
+name: Daily Truck Search
+
+on:
+  schedule:
+    # 1 PM UTC = 8 AM ET (winter) / 9 AM ET (summer)
+    - cron: '0 13 * * *'
+  workflow_dispatch:  # allow manual trigger from the Actions tab
+
+# Only one run at a time — queue, don't cancel, if triggered while running
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  # ── 1. Run the scraper ────────────────────────────────────────────────────
+  crawl:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # needed to commit trucks.db back to the repo
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run scraper
+        run: python main.py --no-browser
+
+      - name: Persist database
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add trucks.db
+          git diff --staged --quiet || git commit -m "chore: update database $(date -u +%Y-%m-%d)"
+          git push
+
+      # Upload output/ as the GitHub Pages artifact for the deploy job
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: output/
+
+  # ── 2. Publish to GitHub Pages ────────────────────────────────────────────
+  # Before this works you must enable Pages in the repo:
+  #   Settings → Pages → Source → "GitHub Actions"
+  deploy:
+    needs: crawl
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

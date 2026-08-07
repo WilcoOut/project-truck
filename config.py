@@ -5,7 +5,7 @@ import math
 # ZIP 23185 = Williamsburg, VA
 HOME_LAT = 37.2707
 HOME_LON = -76.7075
-SEARCH_RADIUS_MILES = 300
+SEARCH_RADIUS_MILES = 500
 
 # ── Target vehicles ───────────────────────────────────────────────────────────
 # Desired engine variants:
@@ -250,7 +250,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.environ.get("DATA_DIR", BASE_DIR)
 OUTPUT_DIR = os.path.join(DATA_DIR, "output")
 DB_PATH = os.path.join(DATA_DIR, "trucks.db")
-REPORT_PATH = os.path.join(OUTPUT_DIR, "report.html")
+REPORT_PATH = os.path.join(OUTPUT_DIR, "index.html")
 
 REQUEST_DELAY = 1.5
 REQUEST_TIMEOUT = 15
