@@ -49,7 +49,7 @@ YEARS = sorted({y for m in MODELS for y in m["years"]})
 
 # ── Price range ───────────────────────────────────────────────────────────────
 PRICE_MIN = 500
-PRICE_MAX = 20000
+PRICE_MAX = 8000
 
 # ── Craigslist cities with coordinates ───────────────────────────────────────
 # (lat, lon) for the center of each metro; used to filter by SEARCH_RADIUS_MILES
@@ -151,6 +151,22 @@ GREEN_FLAGS = [
     # Engine-specific boosts for target variants
     "v6", "3.4l", "3.4 liter", "4.0l", "4.0 liter", "4.3l", "4.3 liter",
     "3.9l", "3.9 liter", "magnum",
+]
+
+# Wrong body style / variant — reject these regardless of engine
+VARIANT_REJECT_TERMS = [
+    "blazer",   # S-10 Blazer is a 2-door SUV, not a pickup
+    "jimmy",    # GMC Jimmy — SUV sibling of the S-10 Blazer
+]
+
+# Engine displacement / cylinder counts that identify unwanted 4-cyl variants.
+# Checked against the listing title on first pass and the full description once fetched.
+FOUR_CYL_TERMS = [
+    "4cyl", "4-cyl", "4 cyl", "4cylinder", "4 cylinder", "four cylinder",
+    "i4", "inline 4", "inline-4",
+    "2.4l", "2.4 l", "2.4-liter", "2.4 liter",  # Tacoma 2RZ/2AZ 4-cyl
+    "2.2l", "2.2 l", "2.2-liter", "2.2 liter",  # S-10 4-cyl
+    "2.5l", "2.5 l", "2.5-liter", "2.5 liter",  # Ranger 4-cyl
 ]
 
 RED_FLAGS = [

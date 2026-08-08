@@ -1,5 +1,17 @@
 import re
-from config import GREEN_FLAGS, RED_FLAGS, SOFT_RED_FLAGS, MODELS
+from config import GREEN_FLAGS, RED_FLAGS, SOFT_RED_FLAGS, MODELS, FOUR_CYL_TERMS, VARIANT_REJECT_TERMS
+
+
+def has_four_cyl(text: str) -> bool:
+    """Return True if the text explicitly identifies a 4-cylinder engine."""
+    t = (text or "").lower()
+    return any(term in t for term in FOUR_CYL_TERMS)
+
+
+def has_rejected_variant(text: str) -> bool:
+    """Return True if the text identifies a wrong body style (e.g. Blazer SUV)."""
+    t = (text or "").lower()
+    return any(term in t for term in VARIANT_REJECT_TERMS)
 
 
 def extract_year(text: str) -> int | None:
@@ -88,6 +100,10 @@ def filter_listing(raw: dict) -> dict | None:
         raw["model"] = model_name
 
     if not raw.get("make"):
+        return None
+
+    # Reject wrong variants (e.g. S-10 Blazer SUV) or 4-cyl engines
+    if has_rejected_variant(combined) or has_four_cyl(combined):
         return None
 
     # Find the matched model definition and validate the year against its range

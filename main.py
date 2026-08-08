@@ -11,9 +11,9 @@ from datetime import datetime
 
 from config import OUTPUT_DIR, REPORT_PATH, get_cities_in_radius
 from database import init_db, reset_new_flags, upsert_listing, cleanup_stale_listings, get_listing_image, get_all_listings, get_stats
-from filter import filter_listing
+from filter import filter_listing, has_four_cyl, has_rejected_variant
 from report import generate_report
-from scrapers.craigslist import CraigslistScraper, fetch_listing_image
+from scrapers.craigslist import CraigslistScraper, fetch_listing_details
 
 
 def main(open_browser: bool = True):
@@ -49,10 +49,20 @@ def main(open_browser: bool = True):
                 continue
             scraper_kept += 1
 
-            # Hydrate image: reuse stored URL if we have one, else fetch detail page
-            if not listing.get("image_url"):
-                stored = get_listing_image(listing["id"])
-                listing["image_url"] = stored if stored else fetch_listing_image(listing["url"])
+            # Fetch detail page for image + description (skip if image already stored)
+            stored_img = get_listing_image(listing["id"])
+            if stored_img:
+                listing["image_url"] = stored_img
+            else:
+                img_url, description = fetch_listing_details(listing["url"])
+                listing["image_url"] = img_url
+                if description:
+                    listing["description"] = description
+
+            # Second pass: description may reveal 4-cyl or wrong variant the title hid
+            full_text = f"{listing.get('title', '')} {listing.get('description', '')}"
+            if has_four_cyl(full_text) or has_rejected_variant(full_text):
+                continue
 
             if upsert_listing(listing):
                 scraper_new += 1

@@ -18,14 +18,20 @@ def _unique_search_terms() -> list[str]:
     return terms
 
 
-def fetch_listing_image(url: str) -> str | None:
-    """Fetch the first photo from a Craigslist listing detail page."""
+def fetch_listing_details(url: str) -> tuple[str | None, str]:
+    """Fetch the first photo and description text from a Craigslist listing page.
+
+    Returns (image_url, description). Either may be empty/None if unavailable.
+    """
     resp = fetch(url)
     if not resp:
-        return None
+        return None, ""
     soup = BeautifulSoup(resp.text, "lxml")
     img = soup.select_one("figure.iw img, .gallery img")
-    return img.get("src") if img else None
+    image_url = img.get("src") if img else None
+    body = soup.select_one("#postingbody")
+    description = body.get_text(" ", strip=True) if body else ""
+    return image_url, description
 
 
 class CraigslistScraper:
