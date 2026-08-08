@@ -10,7 +10,7 @@ import webbrowser
 from datetime import datetime
 
 from config import OUTPUT_DIR, REPORT_PATH, get_cities_in_radius
-from database import init_db, reset_new_flags, upsert_listing, cleanup_stale_listings, get_listing_image, get_all_listings, get_stats
+from database import init_db, reset_new_flags, upsert_listing, cleanup_stale_listings, cleanup_unknown_models, get_listing_image, get_all_listings, get_stats
 from filter import filter_listing, has_four_cyl, has_rejected_variant
 from report import generate_report
 from scrapers.craigslist import CraigslistScraper, fetch_listing_details
@@ -25,6 +25,7 @@ def main(open_browser: bool = True):
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     init_db()
+    cleanup_unknown_models()
     reset_new_flags()
 
     scrapers = [

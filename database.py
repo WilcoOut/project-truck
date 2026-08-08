@@ -112,6 +112,21 @@ def get_listing_image(listing_id: str) -> str | None:
     return row["image_url"] if row else None
 
 
+def cleanup_unknown_models() -> int:
+    """Delete listings whose model is no longer in the current MODELS config."""
+    from config import MODELS
+    valid = [m["name"] for m in MODELS]
+    conn = get_conn()
+    result = conn.execute(
+        f"DELETE FROM listings WHERE model NOT IN ({','.join('?'*len(valid))})",
+        valid,
+    )
+    removed = result.rowcount
+    conn.commit()
+    conn.close()
+    return removed
+
+
 def reset_new_flags() -> None:
     """Clear is_new before each run so only today's finds are flagged new."""
     conn = get_conn()
